@@ -1,0 +1,62 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Find Me API",
+        "description": "API REST du MVP Find Me, plateforme de services numériques.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8000/api/v1",
+            "description": "Environnement local"
+        }
+    ],
+    "paths": {
+        "/health": {
+            "get": {
+                "tags": [
+                    "Système"
+                ],
+                "summary": "Vérifier l’état de l’API",
+                "description": "Vérifie que le backend Find Me est opérationnel.",
+                "operationId": "948a42bdb65c02ff487237856eef1afe",
+                "responses": {
+                    "200": {
+                        "description": "API opérationnelle",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "API Find Me opérationnelle"
+                                        },
+                                        "service": {
+                                            "type": "string",
+                                            "example": "find-me-api"
+                                        },
+                                        "version": {
+                                            "type": "string",
+                                            "example": "1.0.0"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Système",
+            "description": "Système"
+        }
+    ]
+}
