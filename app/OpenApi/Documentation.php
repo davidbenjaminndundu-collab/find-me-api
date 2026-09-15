@@ -13,6 +13,4 @@ use OpenApi\Attributes as OA;
     url: 'http://localhost:8000/api/v1',
     description: 'Environnement local'
 )]
-class Documentation
-{
-}
+class Documentation {}
