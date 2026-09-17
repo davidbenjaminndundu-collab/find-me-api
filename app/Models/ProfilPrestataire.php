@@ -37,3 +37,4 @@ class ProfilPrestataire extends Model
         return $this->belongsTo(Utilisateur::class, 'id_utilisateur', 'id_utilisateur');
     }
 }
+
