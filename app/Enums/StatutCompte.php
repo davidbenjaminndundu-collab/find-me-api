@@ -2,7 +2,7 @@
 
 namespace App\Enums;
 
-enum StatutCompte
+enum StatutCompte: string
 {
     case AVerifier = 'a_verifier';
     case Actif = 'actif';

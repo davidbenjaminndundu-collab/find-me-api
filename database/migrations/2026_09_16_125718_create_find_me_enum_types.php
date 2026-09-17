@@ -7,6 +7,22 @@ return new class extends Migration
 {
     public function up(): void
     {
+        DB::statement('DROP TYPE IF EXISTS canal_notification CASCADE');
+        DB::statement('DROP TYPE IF EXISTS statut_avis CASCADE');
+        DB::statement('DROP TYPE IF EXISTS type_mouvement_wallet CASCADE');
+        DB::statement('DROP TYPE IF EXISTS sens_mouvement_wallet CASCADE');
+        DB::statement('DROP TYPE IF EXISTS statut_mouvement_wallet CASCADE');
+        DB::statement('DROP TYPE IF EXISTS statut_retrait CASCADE');
+        DB::statement('DROP TYPE IF EXISTS decision_litige CASCADE');
+        DB::statement('DROP TYPE IF EXISTS statut_litige CASCADE');
+        DB::statement('DROP TYPE IF EXISTS statut_revision CASCADE');
+        DB::statement('DROP TYPE IF EXISTS statut_livraison CASCADE');
+        DB::statement('DROP TYPE IF EXISTS statut_paiement CASCADE');
+        DB::statement('DROP TYPE IF EXISTS statut_cycle_commande CASCADE');
+        DB::statement('DROP TYPE IF EXISTS statut_annonce CASCADE');
+        DB::statement('DROP TYPE IF EXISTS statut_compte CASCADE');
+        DB::statement('DROP TYPE IF EXISTS role_utilisateur CASCADE');
+
         DB::statement("CREATE TYPE role_utilisateur AS ENUM ('client', 'prestataire', 'administrateur')");
         DB::statement("CREATE TYPE statut_compte AS ENUM ('a_verifier', 'actif', 'suspendu', 'bloque', 'ferme')");
         DB::statement("CREATE TYPE statut_annonce AS ENUM ('brouillon', 'en_attente_validation', 'publiee', 'refusee', 'desactivee', 'supprimee')");
