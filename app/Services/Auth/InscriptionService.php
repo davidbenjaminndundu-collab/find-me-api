@@ -3,16 +3,21 @@
 namespace App\Services\Auth;
 
 use App\Enums\StatutCompte;
-use App\Models\Utilisateur;
 use App\Http\Requests\Api\V1\Auth\InscriptionRequest;
+use App\Models\Utilisateur;
+use Illuminate\Support\Facades\Log;
 
 class InscriptionService
 {
+    public function __construct(
+        private OtpService $otp
+    ) {}
+
     public function inscrire(InscriptionRequest $request): Utilisateur
     {
         $donnees = $request->validated();
 
-        return Utilisateur::query()->create([
+        $utilisateur = Utilisateur::query()->create([
             'telephone' => $donnees['telephone'],
             'mot_de_passe_hash' => $donnees['mot_de_passe'],
             'nom' => $donnees['nom'],
@@ -22,5 +27,16 @@ class InscriptionService
             'role' => $donnees['role'],
             'statut_compte' => StatutCompte::AVerifier,
         ]);
+
+        $code = $this->otp->generer($utilisateur->telephone);
+
+        if (app()->isLocal()) {
+            Log::info('OTP inscription (local uniquement)', [
+                'telephone' => $utilisateur->telephone,
+                'code' => $code,
+            ]);
+        }
+
+        return $utilisateur;
     }
 }
