@@ -9,12 +9,16 @@ class OtpService
 {
     private const TTL_SECONDES = 600;
 
-    public function generer(string $telephone): string
-    {
+    private const CONTEXTE_VERIFICATION_TELEPHONE = 'verification_telephone';
+
+    public function generer(
+        string $telephone,
+        string $contexte = self::CONTEXTE_VERIFICATION_TELEPHONE
+    ): string {
         $code = (string) random_int(100000, 999999);
 
         Cache::store('redis')->put(
-            $this->cle($telephone),
+            $this->cle($telephone, $contexte),
             Hash::make($code),
             self::TTL_SECONDES
         );
@@ -22,24 +26,33 @@ class OtpService
         return $code;
     }
 
-    public function estValide(string $telephone, string $code): bool
-    {
-        $hash = Cache::store('redis')->get($this->cle($telephone));
+    public function estValide(
+        string $telephone,
+        string $code,
+        string $contexte = self::CONTEXTE_VERIFICATION_TELEPHONE
+    ): bool {
+        $codeHash = Cache::store('redis')->get(
+            $this->cle($telephone, $contexte)
+        );
 
-        if ($hash === null) {
+        if (! $codeHash) {
             return false;
         }
 
-        return Hash::check($code, $hash);
+        return Hash::check($code, $codeHash);
     }
 
-    public function supprimer(string $telephone): void
-    {
-        Cache::store('redis')->forget($this->cle($telephone));
+    public function supprimer(
+        string $telephone,
+        string $contexte = self::CONTEXTE_VERIFICATION_TELEPHONE
+    ): void {
+        Cache::store('redis')->forget(
+            $this->cle($telephone, $contexte)
+        );
     }
 
-    private function cle(string $telephone): string
+    private function cle(string $telephone, string $contexte): string
     {
-        return 'otp:telephone:'.$telephone;
+        return "otp:{$contexte}:{$telephone}";
     }
 }

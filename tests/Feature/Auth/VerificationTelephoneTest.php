@@ -13,6 +13,25 @@ class VerificationTelephoneTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config([
+            'sanctum.stateful' => [
+                'localhost',
+                'localhost:5173',
+                '127.0.0.1',
+                '127.0.0.1:5173',
+            ],
+        ]);
+
+        $this->withHeader(
+            'Origin',
+            'http://localhost:5173'
+        );
+    }
+
     public function test_un_code_valide_active_le_compte(): void
     {
         $telephone = '+243810000040';
