@@ -18,8 +18,6 @@ class ProfilPrestataire extends Model
         'bio',
         'competences',
         'portfolio_url',
-        'note_moyenne',
-        'nombre_avis',
         'statut_disponibilite',
     ];
 
