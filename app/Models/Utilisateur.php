@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\RoleUtilisateur;
 use App\Enums\StatutCompte;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -48,5 +49,14 @@ class Utilisateur extends Authenticatable
     public function getAuthPassword(): string
     {
         return $this->mot_de_passe_hash;
+    }
+
+    public function profilPrestataire(): HasOne
+    {
+        return $this->hasOne(
+            ProfilPrestataire::class,
+            'id_utilisateur',
+            'id_utilisateur'
+        );
     }
 }
