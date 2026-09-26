@@ -31,6 +31,7 @@ class CreerAnnonceRequest extends FormRequest
             'image_couverture' => ['nullable', 'string', 'max:500'],
             'mots_cles' => ['nullable', 'string'],
             'conditions_particulieres' => ['nullable', 'string'],
+            'statut' => ['prohibited'],
         ];
     }
 }

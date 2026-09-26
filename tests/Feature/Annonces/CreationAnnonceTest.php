@@ -126,4 +126,17 @@ class CreationAnnonceTest extends TestCase
             ]))
             ->assertUnprocessable();
     }
+
+    public function test_le_statut_envoye_par_le_client_est_refuse(): void
+    {
+        $this->actingAs($this->prestataire)
+            ->postJson('/api/v1/annonces', $this->payload([
+                'statut' => 'publiee',
+            ]))
+            ->assertUnprocessable();
+
+        $this->assertDatabaseMissing('annonces', [
+            'titre' => 'Creation de logo',
+        ]);
+    }
 }
