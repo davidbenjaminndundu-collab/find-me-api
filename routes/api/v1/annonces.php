@@ -11,7 +11,6 @@ Route::middleware('auth:sanctum')->group(function () {
           '/annonces/{idAnnonce}/publier',
           PublierAnnonceController::class
       )->whereNumber('idAnnonce');
-  });
 
     Route::patch('/annonces/{id}', ModifierAnnonceController::class);
 });

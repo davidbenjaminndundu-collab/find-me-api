@@ -3,35 +3,83 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+
     container_name: find_me_api
+
     working_dir: /var/www/html
+
     volumes:
       - .:/var/www/html
+
     ports:
       - "8000:8000"
+
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    networks:
+      find_me_network:
+        aliases:
+          - backend
+
 
   postgres:
     image: postgres:17
+
     container_name: find_me_postgres
+
     restart: unless-stopped
+
     environment:
       POSTGRES_DB: find_me
       POSTGRES_USER: find_me_user
       POSTGRES_PASSWORD: find_me_password
+
     ports:
       - "5433:5432"
+
     volumes:
       - find_me_postgres_data:/var/lib/postgresql/data
 
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U find_me_user -d find_me"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - find_me_network
+
+
   redis:
     image: redis:7-alpine
+
     container_name: find_me_redis
+
     restart: unless-stopped
+
     ports:
       - "6380:6379"
 
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+    networks:
+      - find_me_network
+
+
 volumes:
   find_me_postgres_data:
+
+
+networks:
+  find_me_network:
+    name: find_me_network
