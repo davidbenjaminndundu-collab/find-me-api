@@ -28,6 +28,7 @@ class Annonce extends Model
         'statut',
         'motif_refus',
         'published_at',
+        'validee_admin_at',
     ];
 
     protected function casts(): array
@@ -37,6 +38,7 @@ class Annonce extends Model
             'delai_livraison_jours' => 'integer',
             'nombre_revisions' => 'integer',
             'statut' => StatutAnnonce::class,
+            'validee_admin_at' => 'datetime',
             'published_at' => 'datetime',
         ];
     }
