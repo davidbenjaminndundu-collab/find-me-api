@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Annonces\CreerAnnonceController;
 use App\Http\Controllers\Api\V1\Annonces\PublierAnnonceController;
 use App\Http\Controllers\Api\V1\Annonces\DesactiverAnnonceController;
+use App\Http\Controllers\Api\V1\Annonces\ConsulterAnnoncePubliqueController;
 use App\Http\Controllers\Api\V1\Annonces\ModifierAnnonceController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,3 +21,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::patch('/annonces/{id}', ModifierAnnonceController::class);
 });
+
+Route::get(
+        '/annonces/{idAnnonce}',
+        ConsulterAnnoncePubliqueController::class
+    )->whereNumber('idAnnonce');
+
+
