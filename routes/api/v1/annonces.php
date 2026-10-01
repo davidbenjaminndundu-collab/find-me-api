@@ -19,12 +19,12 @@ Route::middleware('auth:sanctum')->group(function () {
         DesactiverAnnonceController::class
     )->whereNumber('idAnnonce');
 
-    Route::get(
+    Route::patch('/annonces/{id}', ModifierAnnonceController::class);
+});
+
+Route::get(
         '/annonces/{idAnnonce}',
         ConsulterAnnoncePubliqueController::class
     )->whereNumber('idAnnonce');
 
-
-    Route::patch('/annonces/{id}', ModifierAnnonceController::class);
-});
 
