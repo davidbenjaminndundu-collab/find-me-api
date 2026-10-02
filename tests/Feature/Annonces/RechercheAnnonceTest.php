@@ -157,4 +157,50 @@ class RechercheAnnonceTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['limit']);
     }
+
+    public function test_le_filtre_par_categorie_retourne_uniquement_les_annonces_de_cette_categorie(): void
+    {
+        $autreCategorie = Categorie::query()->create([
+            'nom' => 'Développement web',
+            'description' => 'Sites et applications',
+            'est_active' => true,
+        ]);
+
+        $this->annonceSite->update([
+            'id_categorie' => $autreCategorie->id_categorie,
+        ]);
+
+        $response = $this->getJson(
+            '/api/v1/annonces?id_categorie=' . $this->categorie->id_categorie
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id_annonce', $this->annonceLogo->id_annonce)
+            ->assertJsonPath(
+                'data.0.categorie.id_categorie',
+                $this->categorie->id_categorie
+            );
+    }
+
+    public function test_le_filtre_categorie_peut_etre_combine_avec_la_recherche(): void
+    {
+        $response = $this->getJson(
+            '/api/v1/annonces?q=logo&id_categorie=' . $this->categorie->id_categorie
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id_annonce', $this->annonceLogo->id_annonce);
+    }
+
+    public function test_une_categorie_inexistante_est_refusee(): void
+    {
+        $this->getJson('/api/v1/annonces?id_categorie=999999')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['id_categorie']);
+    }
 }

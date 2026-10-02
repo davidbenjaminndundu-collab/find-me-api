@@ -13,6 +13,7 @@ class RechercheAnnonceService
      */
     public function rechercher(
         ?string $q,
+        ?int $idCategorie,
         ?int $limit,
         ?int $offset
     ): array {
@@ -35,6 +36,10 @@ class RechercheAnnonceService
                     ->orWhere('description', 'ilike', $term)
                     ->orWhere('mots_cles', 'ilike', $term);
             });
+        }
+
+        if ($idCategorie !== null) {
+            $query->where('id_categorie', $idCategorie);
         }
 
         $total = (clone $query)->count();

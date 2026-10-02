@@ -17,11 +17,12 @@ class RechercheAnnonceController extends Controller
 
     public function __invoke(RechercheAnnonceRequest $request): JsonResponse
     {
-        $resultat = $this->service->rechercher(
-            $request->validated('q'),
-            $request->validated('limit'),
-            $request->validated('offset')
-        );
+                $resultat = $this->service->rechercher(
+                    $request->validated('q'),
+                    $request->validated('id_categorie'),
+                    $request->validated('limit'),
+                    $request->validated('offset')
+                );
 
         return response()->json([
             'data' => $resultat['data']->map(
