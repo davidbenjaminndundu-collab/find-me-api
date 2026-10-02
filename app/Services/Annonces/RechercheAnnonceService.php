@@ -16,6 +16,7 @@ class RechercheAnnonceService
         ?int $idCategorie,
         ?string $prixMin,
         ?string $prixMax,
+        ?int $delaiMax,
         ?int $limit,
         ?int $offset
     ): array {
@@ -50,6 +51,10 @@ class RechercheAnnonceService
 
         if ($prixMax !== null) {
             $query->where('prix_base', '<=', $prixMax);
+        }
+
+        if ($delaiMax !== null) {
+            $query->where('delai_livraison_jours', '<=', $delaiMax);
         }
 
         $total = (clone $query)->count();

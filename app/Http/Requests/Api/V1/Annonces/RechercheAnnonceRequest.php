@@ -38,6 +38,11 @@ class RechercheAnnonceRequest extends FormRequest
                     ['gte:prix_min']
                 ),
             ],
+            'delai_max' => [
+                'nullable',
+                'integer',
+                'min:1',
+            ],
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
             'offset' => ['nullable', 'integer', 'min:0'],
         ];

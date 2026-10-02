@@ -236,4 +236,27 @@ class RechercheAnnonceTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['prix_max']);
     }
+    public function test_le_filtre_delai_max_retourne_les_annonces_assez_rapides(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?delai_max=7');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id_annonce', $this->annonceLogo->id_annonce);
+    }
+    public function test_le_filtre_delai_max_inclut_les_annonces_au_dela_egal(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?delai_max=14');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonCount(2, 'data');
+    }
+    public function test_un_delai_max_invalide_est_refuse(): void
+    {
+        $this->getJson('/api/v1/annonces?delai_max=0')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['delai_max']);
+    }
 }

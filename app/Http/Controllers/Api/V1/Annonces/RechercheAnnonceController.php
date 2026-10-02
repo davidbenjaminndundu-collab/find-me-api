@@ -25,6 +25,7 @@ class RechercheAnnonceController extends Controller
             $request->validated('id_categorie'),
             $prixMin !== null ? (string) $prixMin : null,
             $prixMax !== null ? (string) $prixMax : null,
+            $request->validated('delai_max'),
             $request->validated('limit'),
             $request->validated('offset')
         );
