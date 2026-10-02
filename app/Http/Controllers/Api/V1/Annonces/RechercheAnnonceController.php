@@ -19,6 +19,7 @@ class RechercheAnnonceController extends Controller
     {
         $prixMin = $request->validated('prix_min');
         $prixMax = $request->validated('prix_max');
+        $noteMin = $request->validated('note_min');
 
         $resultat = $this->service->rechercher(
             $request->validated('q'),
@@ -26,6 +27,7 @@ class RechercheAnnonceController extends Controller
             $prixMin !== null ? (string) $prixMin : null,
             $prixMax !== null ? (string) $prixMax : null,
             $request->validated('delai_max'),
+            $noteMin !== null ? (string) $noteMin : null,
             $request->validated('limit'),
             $request->validated('offset')
         );
