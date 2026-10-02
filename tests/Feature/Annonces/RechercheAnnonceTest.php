@@ -259,4 +259,30 @@ class RechercheAnnonceTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['delai_max']);
     }
+
+    public function test_le_filtre_note_min_exclut_les_notes_trop_basses(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?note_min=1');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 0)
+            ->assertJsonCount(0, 'data');
+    }
+    public function test_le_filtre_note_min_retourne_les_annonces_assez_bien_notees(): void
+    {
+        ProfilPrestataire::query()
+            ->where('id_prestataire', $this->profil->id_prestataire)
+            ->update(['note_moyenne' => 4.50]);
+        $response = $this->getJson('/api/v1/annonces?note_min=4');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonCount(2, 'data');
+    }
+    public function test_une_note_min_invalide_est_refusee(): void
+    {
+        $this->getJson('/api/v1/annonces?note_min=6')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['note_min']);
+    }
 }
