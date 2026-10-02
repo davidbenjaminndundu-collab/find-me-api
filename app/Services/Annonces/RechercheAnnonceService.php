@@ -14,6 +14,8 @@ class RechercheAnnonceService
     public function rechercher(
         ?string $q,
         ?int $idCategorie,
+        ?string $prixMin,
+        ?string $prixMax,
         ?int $limit,
         ?int $offset
     ): array {
@@ -40,6 +42,14 @@ class RechercheAnnonceService
 
         if ($idCategorie !== null) {
             $query->where('id_categorie', $idCategorie);
+        }
+
+        if ($prixMin !== null) {
+            $query->where('prix_base', '>=', $prixMin);
+        }
+
+        if ($prixMax !== null) {
+            $query->where('prix_base', '<=', $prixMax);
         }
 
         $total = (clone $query)->count();

@@ -203,4 +203,37 @@ class RechercheAnnonceTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['id_categorie']);
     }
+
+    public function test_le_filtre_prix_min_retourne_les_annonces_assez_cheres(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?prix_min=100');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id_annonce', $this->annonceSite->id_annonce);
+    }
+    public function test_le_filtre_prix_max_retourne_les_annonces_assez_bon_marche(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?prix_max=100');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id_annonce', $this->annonceLogo->id_annonce);
+    }
+    public function test_le_filtre_prix_min_et_max_fonctionne_ensemble(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?prix_min=40&prix_max=60');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id_annonce', $this->annonceLogo->id_annonce);
+    }
+    public function test_prix_max_inferieur_a_prix_min_est_refuse(): void
+    {
+        $this->getJson('/api/v1/annonces?prix_min=100&prix_max=50')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['prix_max']);
+    }
 }
