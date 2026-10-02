@@ -203,4 +203,86 @@ class RechercheAnnonceTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['id_categorie']);
     }
+
+    public function test_le_filtre_prix_min_retourne_les_annonces_assez_cheres(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?prix_min=100');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id_annonce', $this->annonceSite->id_annonce);
+    }
+    public function test_le_filtre_prix_max_retourne_les_annonces_assez_bon_marche(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?prix_max=100');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id_annonce', $this->annonceLogo->id_annonce);
+    }
+    public function test_le_filtre_prix_min_et_max_fonctionne_ensemble(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?prix_min=40&prix_max=60');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id_annonce', $this->annonceLogo->id_annonce);
+    }
+    public function test_prix_max_inferieur_a_prix_min_est_refuse(): void
+    {
+        $this->getJson('/api/v1/annonces?prix_min=100&prix_max=50')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['prix_max']);
+    }
+    public function test_le_filtre_delai_max_retourne_les_annonces_assez_rapides(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?delai_max=7');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id_annonce', $this->annonceLogo->id_annonce);
+    }
+    public function test_le_filtre_delai_max_inclut_les_annonces_au_dela_egal(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?delai_max=14');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonCount(2, 'data');
+    }
+    public function test_un_delai_max_invalide_est_refuse(): void
+    {
+        $this->getJson('/api/v1/annonces?delai_max=0')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['delai_max']);
+    }
+
+    public function test_le_filtre_note_min_exclut_les_notes_trop_basses(): void
+    {
+        $response = $this->getJson('/api/v1/annonces?note_min=1');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 0)
+            ->assertJsonCount(0, 'data');
+    }
+    public function test_le_filtre_note_min_retourne_les_annonces_assez_bien_notees(): void
+    {
+        ProfilPrestataire::query()
+            ->where('id_prestataire', $this->profil->id_prestataire)
+            ->update(['note_moyenne' => 4.50]);
+        $response = $this->getJson('/api/v1/annonces?note_min=4');
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonCount(2, 'data');
+    }
+    public function test_une_note_min_invalide_est_refusee(): void
+    {
+        $this->getJson('/api/v1/annonces?note_min=6')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['note_min']);
+    }
 }

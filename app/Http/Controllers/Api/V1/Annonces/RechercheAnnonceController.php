@@ -17,12 +17,20 @@ class RechercheAnnonceController extends Controller
 
     public function __invoke(RechercheAnnonceRequest $request): JsonResponse
     {
-                $resultat = $this->service->rechercher(
-                    $request->validated('q'),
-                    $request->validated('id_categorie'),
-                    $request->validated('limit'),
-                    $request->validated('offset')
-                );
+        $prixMin = $request->validated('prix_min');
+        $prixMax = $request->validated('prix_max');
+        $noteMin = $request->validated('note_min');
+
+        $resultat = $this->service->rechercher(
+            $request->validated('q'),
+            $request->validated('id_categorie'),
+            $prixMin !== null ? (string) $prixMin : null,
+            $prixMax !== null ? (string) $prixMax : null,
+            $request->validated('delai_max'),
+            $noteMin !== null ? (string) $noteMin : null,
+            $request->validated('limit'),
+            $request->validated('offset')
+        );
 
         return response()->json([
             'data' => $resultat['data']->map(
