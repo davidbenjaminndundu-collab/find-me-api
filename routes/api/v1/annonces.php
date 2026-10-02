@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\Annonces\PublierAnnonceController;
 use App\Http\Controllers\Api\V1\Annonces\DesactiverAnnonceController;
 use App\Http\Controllers\Api\V1\Annonces\ConsulterAnnoncePubliqueController;
 use App\Http\Controllers\Api\V1\Annonces\ModifierAnnonceController;
+use App\Http\Controllers\Api\V1\Annonces\RechercheAnnonceController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -23,8 +24,11 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::get(
-        '/annonces/{idAnnonce}',
-        ConsulterAnnoncePubliqueController::class
-    )->whereNumber('idAnnonce');
+    '/annonces',
+    RechercheAnnonceController::class
+);
 
-
+Route::get(
+    '/annonces/{idAnnonce}',
+    ConsulterAnnoncePubliqueController::class
+)->whereNumber('idAnnonce');
