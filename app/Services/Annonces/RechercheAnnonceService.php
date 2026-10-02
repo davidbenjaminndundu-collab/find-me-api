@@ -16,6 +16,8 @@ class RechercheAnnonceService
         ?int $idCategorie,
         ?string $prixMin,
         ?string $prixMax,
+        ?int $delaiMax,
+        ?string $noteMin,
         ?int $limit,
         ?int $offset
     ): array {
@@ -50,6 +52,16 @@ class RechercheAnnonceService
 
         if ($prixMax !== null) {
             $query->where('prix_base', '<=', $prixMax);
+        }
+
+        if ($delaiMax !== null) {
+            $query->where('delai_livraison_jours', '<=', $delaiMax);
+        }
+
+        if ($noteMin !== null) {
+            $query->whereHas('prestataire', function ($builder) use ($noteMin) {
+                $builder->where('note_moyenne', '>=', $noteMin);
+            });
         }
 
         $total = (clone $query)->count();
