@@ -26,8 +26,20 @@ class CreerDemandeController extends Controller
             $request->validated()
         );
 
+        
+        $nouvelleCommande = $commande->wasRecentlyCreated;
+
+        $codeHttp = $nouvelleCommande ? 201 : 200;
+
+        $message = $nouvelleCommande
+            ? 'Demande envoyée avec succès.'
+            : 'Cette demande a déjà été enregistrée.';
+
+
         return response()->json([
-            'message' => 'Demande envoyée avec succès.',
+            
+            'message' => $message,
+
 
             'commande' => [
                 'id_commande' =>
@@ -63,6 +75,6 @@ class CreerDemandeController extends Controller
                 'est_offre_personnalisee' =>
                     $commande->est_offre_personnalisee,
             ],
-        ], 201);
+        ], $codeHttp);
     }
 }

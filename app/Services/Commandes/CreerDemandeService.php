@@ -9,6 +9,9 @@ use App\Enums\StatutCompte;
 use App\Models\Annonce;
 use App\Models\Commande;
 use App\Models\Utilisateur;
+
+use Illuminate\Database\QueryException;
+
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -22,6 +25,32 @@ class CreerDemandeService
         array $donnees
     ): Commande {
         $this->verifierClient($utilisateur);
+        
+        $empreinteRequete = hash(
+            'sha256',
+            json_encode([
+                'id_annonce' => (int) $donnees['id_annonce'],
+                'description_commande' => $donnees['description_commande'],
+            ], JSON_THROW_ON_ERROR)
+        );
+
+        
+        $commandeExistante = Commande::query()
+            ->where('id_client', $utilisateur->id_utilisateur)
+            ->where('cle_idempotence', $donnees['cle_idempotence'])
+            ->first();
+
+        if ($commandeExistante !== null) {
+            if ($commandeExistante->empreinte_requete !== $empreinteRequete) {
+                throw new HttpException(
+                    409,
+                    'Cette clé d\'idempotence a déjà été utilisée pour une demande différente.'
+                );
+            }
+
+            return $commandeExistante;
+        }
+
 
         $annonce = Annonce::query()
             ->where('id_annonce', $donnees['id_annonce'])
@@ -55,64 +84,107 @@ class CreerDemandeService
             2
         );
 
-        return DB::transaction(function () use (
-            $utilisateur,
-            $donnees,
-            $annonce,
-            $montantTotal,
-            $montantCommission,
-            $montantPrestataire
-        ): Commande {
-            return Commande::query()->create([
-                'id_prestataire' =>
-                    $annonce->id_prestataire,
+        try{
+            return DB::transaction(function () use (
+                $utilisateur,
+                $donnees,
+                $annonce,
+                $montantTotal,
+                $montantCommission,
+                $montantPrestataire,
+                $empreinteRequete
+            ): Commande {
+                return Commande::query()->create([
+                    'id_prestataire' =>
+                        $annonce->id_prestataire,
 
-                'id_client' =>
-                    $utilisateur->id_utilisateur,
+                    'id_client' =>
+                        $utilisateur->id_utilisateur,
 
-                'id_annonce' =>
-                    $annonce->id_annonce,
+                    'id_annonce' =>
+                        $annonce->id_annonce,
 
-                'reference_commande' =>
-                    $this->genererReference(),
+                    'reference_commande' =>
+                        $this->genererReference(),
+                    
+                    'cle_idempotence' =>
+                        $donnees['cle_idempotence'],
 
-                'description_commande' =>
-                    $donnees['description_commande'],
+                    'empreinte_requete' =>
+                        $empreinteRequete,
 
-                'titre_service' =>
-                    $annonce->titre,
+                    'description_commande' =>
+                        $donnees['description_commande'],
 
-                'est_offre_personnalisee' =>
-                    false,
+                    'titre_service' =>
+                        $annonce->titre,
 
-                'montant_total' =>
-                    $montantTotal,
+                    'est_offre_personnalisee' =>
+                        false,
 
-                'taux_commission' =>
-                    self::TAUX_COMMISSION,
+                    'montant_total' =>
+                        $montantTotal,
 
-                'montant_commission' =>
-                    $montantCommission,
+                    'taux_commission' =>
+                        self::TAUX_COMMISSION,
 
-                'montant_prestataire' =>
-                    $montantPrestataire,
+                    'montant_commission' =>
+                        $montantCommission,
 
-                'delai_livraison_jours' =>
-                    $annonce->delai_livraison_jours,
+                    'montant_prestataire' =>
+                        $montantPrestataire,
 
-                'nombre_revisions_incluses' =>
-                    $annonce->nombre_revisions,
+                    'delai_livraison_jours' =>
+                        $annonce->delai_livraison_jours,
 
-                'nombre_revisions_utilisees' =>
-                    0,
+                    'nombre_revisions_incluses' =>
+                        $annonce->nombre_revisions,
 
-                'livrables_convenus' =>
-                    $annonce->livrables_inclus,
+                    'nombre_revisions_utilisees' =>
+                        0,
 
-                'statut' =>
-                    StatutCommande::EnAttenteReponse,
-            ]);
-        });
+                    'livrables_convenus' =>
+                        $annonce->livrables_inclus,
+
+                    'statut' =>
+                        StatutCommande::EnAttenteReponse,
+                ]);
+            });
+        }catch (QueryException $exception){
+            // PostgreSQL : violation d'une contrainte d'unicité.
+            if ($exception->getCode() !== '23505') {
+                throw $exception;
+            }
+
+            // Identifier précisément notre contrainte d'idempotence.
+            $messageErreur = $exception->getMessage();
+
+            if (!str_contains(
+                $messageErreur,
+                'commandes_client_idempotence_unique'
+            )) {
+                throw $exception;
+            }
+
+            // Retrouver la commande créée par la requête concurrente.
+            $commandeExistante = Commande::query()
+                ->where('id_client', $utilisateur->id_utilisateur)
+                ->where('cle_idempotence', $donnees['cle_idempotence'])
+                ->first();
+
+            if ($commandeExistante === null) {
+                throw $exception;
+            }
+
+            if ($commandeExistante->empreinte_requete !== $empreinteRequete) {
+                throw new HttpException(
+                    409,
+                    'Cette clé d\'idempotence a déjà été utilisée pour une demande différente.'
+                );
+            }
+
+            return $commandeExistante;
+        }
     }
 
     private function verifierClient(
