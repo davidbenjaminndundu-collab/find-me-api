@@ -52,10 +52,15 @@ class CreerDemandeService
         }
 
 
+        
         $annonce = Annonce::query()
             ->where('id_annonce', $donnees['id_annonce'])
             ->where('statut', StatutAnnonce::Publiee)
+            ->whereHas('prestataire.utilisateur', function ($query) {
+                $query->where('statut_compte', StatutCompte::Actif->value);
+            })
             ->first();
+
 
         if ($annonce === null) {
             throw new HttpException(

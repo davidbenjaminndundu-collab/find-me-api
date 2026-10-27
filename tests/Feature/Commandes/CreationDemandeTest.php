@@ -548,5 +548,28 @@ class CreationDemandeTest extends TestCase
         $this->assertDatabaseCount('commandes', 0);
     }
 
+    
+    public function test_un_prestataire_suspendu_ne_peut_pas_recevoir_de_demande(): void
+    {
+        // Suspendre le compte du prestataire
+        $this->prestataire->update([
+            'statut_compte' => StatutCompte::Suspendu,
+        ]);
+
+        // Un client tente de commander son service
+        $response = $this
+            ->actingAs($this->client)
+            ->postJson('/api/v1/commandes', [
+                'id_annonce' => $this->annonce->id_annonce,
+                'description_commande' =>
+                    'Je souhaite commander ce service graphique.',
+            ]);
+
+        // L'annonce doit être considérée comme indisponible
+        $response->assertNotFound();
+
+        // Aucune commande ne doit être créée
+        $this->assertDatabaseCount('commandes', 0);
+    }
 
 }
