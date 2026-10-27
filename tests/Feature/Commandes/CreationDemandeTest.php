@@ -11,6 +11,7 @@ use App\Models\Annonce;
 use App\Models\Categorie;
 use App\Models\ProfilPrestataire;
 use App\Models\Utilisateur;
+use Illuminate\Support\Str;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -35,6 +36,13 @@ class CreationDemandeTest extends TestCase
             'Origin',
             'http://localhost:5173'
         );
+
+        
+        $this->withHeader(
+            'Idempotency-Key',
+            (string) Str::uuid()
+        );
+
 
         $this->client = Utilisateur::query()->create([
             'telephone' => '+243810001001',
@@ -443,4 +451,125 @@ class CreationDemandeTest extends TestCase
                 'montant_total',
             ]);
     }
+
+
+    
+    public function test_une_meme_cle_idempotence_ne_cree_pas_deux_commandes(): void
+    {
+        $donnees = [
+            'id_annonce' => $this->annonce->id_annonce,
+            'description_commande' =>
+                'Je souhaite un logo professionnel pour mon entreprise.',
+        ];
+
+        // Première requête
+        $premiereReponse = $this
+            ->actingAs($this->client)
+            ->postJson('/api/v1/commandes', $donnees);
+
+        $premiereReponse->assertCreated();
+
+        $idPremiereCommande =
+            $premiereReponse->json('commande.id_commande');
+
+        // Deuxième requête : même clé et mêmes données
+        $deuxiemeReponse = $this
+            ->actingAs($this->client)
+            ->postJson('/api/v1/commandes', $donnees);
+
+        $deuxiemeReponse->assertOk();
+
+        $idDeuxiemeCommande =
+            $deuxiemeReponse->json('commande.id_commande');
+
+        // Les deux réponses concernent la même commande
+        $this->assertEquals(
+            $idPremiereCommande,
+            $idDeuxiemeCommande
+        );
+
+        // Une seule commande doit exister dans la base
+        $this->assertDatabaseCount('commandes', 1);
+    }
+
+    
+    public function test_une_meme_cle_avec_des_donnees_differentes_retourne_409(): void
+    {
+        $url = '/api/v1/commandes';
+
+        // Première demande
+        $premiereReponse = $this
+            ->actingAs($this->client)
+            ->postJson($url, [
+                'id_annonce' => $this->annonce->id_annonce,
+                'description_commande' =>
+                    'Je souhaite un logo professionnel.',
+            ]);
+
+        $premiereReponse->assertCreated();
+
+        // Deuxième demande : même clé, description différente
+        $deuxiemeReponse = $this
+            ->actingAs($this->client)
+            ->postJson($url, [
+                'id_annonce' => $this->annonce->id_annonce,
+                'description_commande' =>
+                    'Je souhaite un site web professionnel.',
+            ]);
+
+        // La clé ne peut pas être réutilisée
+        $deuxiemeReponse->assertStatus(409);
+
+        // Une seule commande doit être enregistrée
+        $this->assertDatabaseCount('commandes', 1);
+    }
+
+
+    
+    public function test_une_demande_sans_cle_idempotence_est_refusee(): void
+    {
+        $response = $this
+            ->actingAs($this->client)
+            ->withHeaders([
+                'Idempotency-Key' => null,
+            ])
+            ->postJson('/api/v1/commandes', [
+                'id_annonce' => $this->annonce->id_annonce,
+                'description_commande' =>
+                    'Je souhaite un logo professionnel pour mon entreprise.',
+            ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'cle_idempotence',
+            ]);
+
+        $this->assertDatabaseCount('commandes', 0);
+    }
+
+    
+    public function test_un_prestataire_suspendu_ne_peut_pas_recevoir_de_demande(): void
+    {
+        // Suspendre le compte du prestataire
+        $this->prestataire->update([
+            'statut_compte' => StatutCompte::Suspendu,
+        ]);
+
+        // Un client tente de commander son service
+        $response = $this
+            ->actingAs($this->client)
+            ->postJson('/api/v1/commandes', [
+                'id_annonce' => $this->annonce->id_annonce,
+                'description_commande' =>
+                    'Je souhaite commander ce service graphique.',
+            ]);
+
+        // L'annonce doit être considérée comme indisponible
+        $response->assertNotFound();
+
+        // Aucune commande ne doit être créée
+        $this->assertDatabaseCount('commandes', 0);
+    }
+
 }

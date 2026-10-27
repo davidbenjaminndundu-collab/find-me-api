@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Utilisateur;
 use App\Services\Commandes\AccepterDemandeService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+use App\Http\Requests\Api\V1\Commandes\AccepterDemandeRequest;
 
 class AccepterDemandeController extends Controller
 {
@@ -16,7 +16,7 @@ class AccepterDemandeController extends Controller
     }
 
     public function __invoke(
-        Request $request,
+        AccepterDemandeRequest $request,
         int $idCommande
     ): JsonResponse {
         /** @var Utilisateur $utilisateur */
@@ -56,6 +56,6 @@ class AccepterDemandeController extends Controller
                 'livrables_convenus' =>
                     $commande->livrables_convenus,
             ],
-        ]);
+        ],202);
     }
 }

@@ -11,9 +11,24 @@ class CreerDemandeRequest extends FormRequest
         return true;
     }
 
+    
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'cle_idempotence' => $this->header('Idempotency-Key'),
+        ]);
+    }
+
+
     public function rules(): array
     {
         return [
+            
+            'cle_idempotence' => [
+                'required',
+                'uuid',
+            ],
+
             'id_annonce' => [
                 'required',
                 'integer',

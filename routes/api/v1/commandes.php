@@ -10,8 +10,10 @@ Route::middleware('auth:sanctum')->group(function () {
         CreerDemandeController::class
     );
 
-    Route::patch(
-        '/commandes/{idCommande}/accepter',
+    
+    Route::post(
+        '/commandes/{idCommande}/actions',
         AccepterDemandeController::class
     )->whereNumber('idCommande');
+
 });
