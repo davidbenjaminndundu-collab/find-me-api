@@ -305,19 +305,24 @@ class AcceptationDemandeTest extends TestCase
 
     // TEST 12 : Action non prise en charge
 
-    public function test_une_action_non_prise_en_charge_est_refusee(): void
+   public function test_une_action_non_prise_en_charge_est_refusee(): void
     {
         $this
             ->actingAs($this->prestataire)
             ->postJson($this->urlAction(), [
-                'type_action' => 'refuser',
+                'type_action' => 'action_invalide',
             ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['type_action']);
+            ->assertJsonValidationErrors([
+                'type_action',
+            ]);
 
         $this->assertDatabaseHas('commandes', [
-            'id_commande' => $this->commande->id_commande,
-            'statut' => StatutCommande::EnAttenteReponse->value,
+            'id_commande' =>
+                $this->commande->id_commande,
+
+            'statut' =>
+                StatutCommande::EnAttenteReponse->value,
         ]);
     }
 

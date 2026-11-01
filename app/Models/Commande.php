@@ -37,6 +37,7 @@ class Commande extends Model
         'date_limite_livraison',
         'date_livraison',
         'date_fin',
+        'motif_refus',
     ];
 
     protected function casts(): array
