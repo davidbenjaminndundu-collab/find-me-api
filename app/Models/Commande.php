@@ -17,6 +17,8 @@ class Commande extends Model
         'id_client',
         'id_annonce',
         'reference_commande',
+        'cle_idempotence',
+        'empreinte_requete',
         'description_commande',
         'titre_service',
         'est_offre_personnalisee',
@@ -35,6 +37,7 @@ class Commande extends Model
         'date_limite_livraison',
         'date_livraison',
         'date_fin',
+        'motif_refus',
     ];
 
     protected function casts(): array
