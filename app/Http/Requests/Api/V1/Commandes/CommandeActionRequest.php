@@ -21,12 +21,20 @@ class CommandeActionRequest extends FormRequest
                 Rule::in([
                     'accepter',
                     'refuser',
+                    'demander_precisions',
                 ]),
             ],
 
             'motif' => [
-                Rule::requiredIf(
-                    fn () => $this->input('type_action') === 'refuser'
+                 Rule::requiredIf(
+                    fn () => in_array(
+                        $this->input('type_action'),
+                        [
+                            'refuser',
+                            'demander_precisions',
+                        ],
+                        true
+                    )
                 ),
                 'nullable',
                 'string',
@@ -46,7 +54,7 @@ class CommandeActionRequest extends FormRequest
                 'Cette action n’est pas prise en charge.',
 
             'motif.required' =>
-                'Le motif du refus est obligatoire.',
+                'Le motif est obligatoire pour cette action.',
         ];
     }
 }
