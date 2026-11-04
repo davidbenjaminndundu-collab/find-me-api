@@ -3,33 +3,54 @@
 namespace App\Http\Controllers\Api\V1\Commandes;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Commandes\CommandeActionRequest;
 use App\Models\Utilisateur;
 use App\Services\Commandes\AccepterDemandeService;
+use App\Services\Commandes\RefuserDemandeService;
 use Illuminate\Http\JsonResponse;
-use App\Http\Requests\Api\V1\Commandes\AccepterDemandeRequest;
 
-class AccepterDemandeController extends Controller
+class ActionCommandeController extends Controller
 {
     public function __construct(
-        private readonly AccepterDemandeService $service
+        private readonly AccepterDemandeService $accepterService,
+        private readonly RefuserDemandeService $refuserService
     ) {
     }
 
     public function __invoke(
-        AccepterDemandeRequest $request,
+        CommandeActionRequest $request,
         int $idCommande
     ): JsonResponse {
         /** @var Utilisateur $utilisateur */
         $utilisateur = $request->user();
 
-        $commande = $this->service->accepter(
-            $utilisateur,
-            $idCommande
-        );
+        $donnees = $request->validated();
+
+        $commande = match ($donnees['type_action']) {
+            'accepter' =>
+                $this->accepterService->accepter(
+                    $utilisateur,
+                    $idCommande
+                ),
+
+            'refuser' =>
+                $this->refuserService->refuser(
+                    $utilisateur,
+                    $idCommande,
+                    $donnees['motif']
+                ),
+        };
+
+        $message = match ($donnees['type_action']) {
+            'accepter' =>
+                'Demande acceptée avec succès.',
+
+            'refuser' =>
+                'Demande refusée avec succès.',
+        };
 
         return response()->json([
-            'message' =>
-                'Demande acceptée avec succès.',
+            'message' => $message,
 
             'commande' => [
                 'id_commande' =>
@@ -44,6 +65,9 @@ class AccepterDemandeController extends Controller
                 'date_acceptation' =>
                     $commande->date_acceptation,
 
+                'date_fin' =>
+                    $commande->date_fin,
+
                 'montant_total' =>
                     $commande->montant_total,
 
@@ -56,6 +80,6 @@ class AccepterDemandeController extends Controller
                 'livrables_convenus' =>
                     $commande->livrables_convenus,
             ],
-        ],202);
+        ], 202);
     }
 }
