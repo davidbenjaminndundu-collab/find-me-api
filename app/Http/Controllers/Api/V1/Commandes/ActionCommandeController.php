@@ -7,13 +7,15 @@ use App\Http\Requests\Api\V1\Commandes\CommandeActionRequest;
 use App\Models\Utilisateur;
 use App\Services\Commandes\AccepterDemandeService;
 use App\Services\Commandes\RefuserDemandeService;
+use App\Services\Commandes\DemanderPrecisionsService;
 use Illuminate\Http\JsonResponse;
 
 class ActionCommandeController extends Controller
 {
     public function __construct(
         private readonly AccepterDemandeService $accepterService,
-        private readonly RefuserDemandeService $refuserService
+        private readonly RefuserDemandeService $refuserService,
+        private readonly DemanderPrecisionsService $precisionsService
     ) {
     }
 
@@ -39,6 +41,12 @@ class ActionCommandeController extends Controller
                     $idCommande,
                     $donnees['motif']
                 ),
+            'demander_precisions' =>
+                $this->precisionsService->demander(
+                    $utilisateur,
+                    $idCommande,
+                    $donnees['motif']
+                ),
         };
 
         $message = match ($donnees['type_action']) {
@@ -47,6 +55,8 @@ class ActionCommandeController extends Controller
 
             'refuser' =>
                 'Demande refusée avec succès.',
+            'demander_precisions' =>
+                'Demande de précisions envoyée avec succès.',
         };
 
         return response()->json([
