@@ -5,6 +5,7 @@ namespace App\Services\Paiements;
 use App\Enums\StatutCommande;
 use App\Enums\StatutPaiement;
 use App\Models\CallbackPaiement;
+use App\Models\Commande;
 use App\Models\Paiement;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +27,9 @@ class RecevoirWebhookPaiementService
             throw new HttpException(400, 'Payload du webhook inexploitable.');
         }
 
-        if ($payload['event'] !== 'payment.completed') {
+        $event = $payload['event'];
+
+        if (! in_array($event, ['payment.completed', 'payment.failed', 'payment.cancelled'], true)) {
             return ['message' => 'Événement ignoré.'];
         }
 
@@ -44,10 +47,10 @@ class RecevoirWebhookPaiementService
             return ['message' => 'Événement ignoré.'];
         }
 
-        $identifiant = $sessionId.':payment.completed';
+        $identifiant = $sessionId.':'.$event;
 
         try {
-            return DB::transaction(function () use ($paiement, $payload, $identifiant, $corpsBrut): array {
+            return DB::transaction(function () use ($paiement, $payload, $identifiant, $corpsBrut, $event): array {
                 $commande = $paiement->commande()->lockForUpdate()->first();
                 $paiement = Paiement::query()
                     ->where('id_paiement', $paiement->id_paiement)
@@ -63,25 +66,10 @@ class RecevoirWebhookPaiementService
                     return ['message' => 'Événement déjà traité.'];
                 }
 
-                $montantAttendu = (int) bcmul((string) $paiement->montant, '100', 0);
-                $montantRecu = $payload['data']['amount'] ?? null;
-                $deviseRecue = $payload['data']['currency'] ?? null;
-                $coherent = $commande !== null
-                    && $commande->statut === StatutCommande::PaiementEnCours
-                    && $paiement->statut === StatutPaiement::EnAttente
-                    && $deviseRecue === 'USD'
-                    && (int) $montantRecu === $montantAttendu;
+                $coherent = $this->estCoherent($paiement, $commande, $payload);
 
                 if ($coherent) {
-                    $paiement->update([
-                        'statut' => StatutPaiement::Confirme,
-                        'confirmed_at' => now(),
-                    ]);
-
-                    $commande->update([
-                        'statut' => StatutCommande::Payee,
-                        'date_paiement' => now(),
-                    ]);
+                    $this->appliquer($paiement, $commande, $event);
                 }
 
                 CallbackPaiement::query()->create([
@@ -97,10 +85,16 @@ class RecevoirWebhookPaiementService
                     'processed_at' => now(),
                 ]);
 
+                if (! $coherent) {
+                    return ['message' => 'Événement reçu sans changement de statut.'];
+                }
+
                 return [
-                    'message' => $coherent
-                        ? 'Paiement confirmé.'
-                        : 'Événement reçu sans changement de statut.',
+                    'message' => match ($event) {
+                        'payment.completed' => 'Paiement confirmé.',
+                        'payment.failed' => 'Paiement échoué.',
+                        'payment.cancelled' => 'Paiement expiré.',
+                    },
                 ];
             });
         } catch (QueryException $exception) {
@@ -110,6 +104,45 @@ class RecevoirWebhookPaiementService
 
             throw $exception;
         }
+    }
+
+    private function estCoherent(Paiement $paiement, ?Commande $commande, array $payload): bool
+    {
+        $montantAttendu = (int) bcmul((string) $paiement->montant, '100', 0);
+
+        return $commande !== null
+            && $commande->statut === StatutCommande::PaiementEnCours
+            && $paiement->statut === StatutPaiement::EnAttente
+            && ($payload['data']['currency'] ?? null) === 'USD'
+            && (int) ($payload['data']['amount'] ?? null) === $montantAttendu;
+    }
+
+    private function appliquer(Paiement $paiement, Commande $commande, string $event): void
+    {
+        if ($event === 'payment.completed') {
+            $paiement->update([
+                'statut' => StatutPaiement::Confirme,
+                'confirmed_at' => now(),
+            ]);
+
+            $commande->update([
+                'statut' => StatutCommande::Payee,
+                'date_paiement' => now(),
+            ]);
+
+            return;
+        }
+
+        $paiement->update([
+            'statut' => $event === 'payment.failed'
+                ? StatutPaiement::Echoue
+                : StatutPaiement::Expire,
+            'failed_at' => now(),
+        ]);
+
+        $commande->update([
+            'statut' => StatutCommande::EnAttentePaiement,
+        ]);
     }
 
     private function estDoublon(QueryException $exception): bool

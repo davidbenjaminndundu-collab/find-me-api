@@ -168,12 +168,48 @@ class RecevoirWebhookPaiementTest extends TestCase
 
     public function test_un_autre_evenement_est_ignore(): void
     {
-        $this->envoyer($this->payload('payment.failed'))
+        $this->envoyer($this->payload('payment.updated'))
             ->assertOk()
             ->assertJsonPath('message', 'Événement ignoré.');
 
         $this->assertSame(StatutPaiement::EnAttente, $this->paiement->fresh()->statut);
         $this->assertDatabaseCount('callbacks_paiement', 0);
+    }
+
+    public function test_un_echec_libere_la_commande_pour_un_nouveau_paiement(): void
+    {
+        $this->envoyer($this->payload('payment.failed'))
+            ->assertOk()
+            ->assertJsonPath('message', 'Paiement échoué.');
+
+        $paiement = $this->paiement->fresh();
+
+        $this->assertSame(StatutPaiement::Echoue, $paiement->statut);
+        $this->assertNotNull($paiement->failed_at);
+        $this->assertSame(
+            StatutCommande::EnAttentePaiement,
+            $this->commande->fresh()->statut
+        );
+        $this->assertDatabaseHas('callbacks_paiement', [
+            'identifiant_evenement' => 'sess_test_e03:payment.failed',
+            'resultat_traitement' => 'traite',
+        ]);
+    }
+
+    public function test_une_annulation_expire_le_paiement(): void
+    {
+        $this->envoyer($this->payload('payment.cancelled'))
+            ->assertOk()
+            ->assertJsonPath('message', 'Paiement expiré.');
+
+        $paiement = $this->paiement->fresh();
+
+        $this->assertSame(StatutPaiement::Expire, $paiement->statut);
+        $this->assertNotNull($paiement->failed_at);
+        $this->assertSame(
+            StatutCommande::EnAttentePaiement,
+            $this->commande->fresh()->statut
+        );
     }
 
     public function test_une_session_inconnue_est_ignoree(): void
