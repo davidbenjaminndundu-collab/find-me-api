@@ -46,44 +46,44 @@ class RecevoirWebhookPaiementService
 
         $identifiant = $sessionId.':payment.completed';
 
-        $dejaVu = CallbackPaiement::query()
-            ->where('operateur', 'nyole')
-            ->where('identifiant_evenement', $identifiant)
-            ->exists();
+        try {
+            return DB::transaction(function () use ($paiement, $payload, $identifiant, $corpsBrut): array {
+                $commande = $paiement->commande()->lockForUpdate()->first();
+                $paiement = Paiement::query()
+                    ->where('id_paiement', $paiement->id_paiement)
+                    ->lockForUpdate()
+                    ->first();
 
-        if ($dejaVu) {
-            return ['message' => 'Événement déjà traité.'];
-        }
+                $dejaVu = CallbackPaiement::query()
+                    ->where('operateur', 'nyole')
+                    ->where('identifiant_evenement', $identifiant)
+                    ->exists();
 
-        return DB::transaction(function () use ($paiement, $payload, $identifiant, $corpsBrut): array {
-            $commande = $paiement->commande()->lockForUpdate()->first();
-            $paiement = Paiement::query()
-                ->where('id_paiement', $paiement->id_paiement)
-                ->lockForUpdate()
-                ->first();
+                if ($dejaVu) {
+                    return ['message' => 'Événement déjà traité.'];
+                }
 
-            $montantAttendu = (int) bcmul((string) $paiement->montant, '100', 0);
-            $montantRecu = $payload['data']['amount'] ?? null;
-            $deviseRecue = $payload['data']['currency'] ?? null;
-            $coherent = $commande !== null
-                && $commande->statut === StatutCommande::PaiementEnCours
-                && $paiement->statut === StatutPaiement::EnAttente
-                && $deviseRecue === 'USD'
-                && (int) $montantRecu === $montantAttendu;
+                $montantAttendu = (int) bcmul((string) $paiement->montant, '100', 0);
+                $montantRecu = $payload['data']['amount'] ?? null;
+                $deviseRecue = $payload['data']['currency'] ?? null;
+                $coherent = $commande !== null
+                    && $commande->statut === StatutCommande::PaiementEnCours
+                    && $paiement->statut === StatutPaiement::EnAttente
+                    && $deviseRecue === 'USD'
+                    && (int) $montantRecu === $montantAttendu;
 
-            if ($coherent) {
-                $paiement->update([
-                    'statut' => StatutPaiement::Confirme,
-                    'confirmed_at' => now(),
-                ]);
+                if ($coherent) {
+                    $paiement->update([
+                        'statut' => StatutPaiement::Confirme,
+                        'confirmed_at' => now(),
+                    ]);
 
-                $commande->update([
-                    'statut' => StatutCommande::Payee,
-                    'date_paiement' => now(),
-                ]);
-            }
+                    $commande->update([
+                        'statut' => StatutCommande::Payee,
+                        'date_paiement' => now(),
+                    ]);
+                }
 
-            try {
                 CallbackPaiement::query()->create([
                     'id_paiement' => $paiement->id_paiement,
                     'operateur' => 'nyole',
@@ -96,16 +96,25 @@ class RecevoirWebhookPaiementService
                     'resultat_traitement' => $coherent ? 'traite' : 'incoherent',
                     'processed_at' => now(),
                 ]);
-            } catch (QueryException) {
+
+                return [
+                    'message' => $coherent
+                        ? 'Paiement confirmé.'
+                        : 'Événement reçu sans changement de statut.',
+                ];
+            });
+        } catch (QueryException $exception) {
+            if ($this->estDoublon($exception)) {
                 return ['message' => 'Événement déjà traité.'];
             }
 
-            return [
-                'message' => $coherent
-                    ? 'Paiement confirmé.'
-                    : 'Événement reçu sans changement de statut.',
-            ];
-        });
+            throw $exception;
+        }
+    }
+
+    private function estDoublon(QueryException $exception): bool
+    {
+        return $exception->getCode() === '23505';
     }
 
     private function signatureValide(string $corpsBrut, ?string $horodatage, ?string $signature): bool
