@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Commandes\CreerDemandeController;
 use App\Http\Controllers\Api\V1\Commandes\ActionCommandeController;
 use App\Http\Controllers\Api\V1\Commandes\RepondrePrecisionsController;
 use App\Http\Controllers\Api\V1\Paiements\InitierPaiementController;
+use App\Http\Controllers\Api\V1\Paiements\ListerPaiementsCommandeController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -28,4 +29,8 @@ Route::middleware('auth:sanctum')->group(function () {
         InitierPaiementController::class
     )->whereNumber('idCommande');
 
+    Route::get(
+        '/commandes/{idCommande}/paiements',
+        ListerPaiementsCommandeController::class
+    )->whereNumber('idCommande');
 });
