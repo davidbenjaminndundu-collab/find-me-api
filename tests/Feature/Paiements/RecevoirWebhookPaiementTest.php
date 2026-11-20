@@ -204,6 +204,29 @@ class RecevoirWebhookPaiementTest extends TestCase
         ]);
     }
 
+
+    public function test_le_meme_evenement_ne_confirme_pas_deux_fois(): void
+    {
+        $this->envoyer($this->payload())
+            ->assertOk()
+            ->assertJsonPath('message', 'Paiement confirmé.');
+
+        $confirmedAt = $this->paiement->fresh()->confirmed_at;
+        $datePaiement = $this->commande->fresh()->date_paiement;
+
+        $this->travel(5)->seconds();
+
+        $this->envoyer($this->payload())
+            ->assertOk()
+            ->assertJsonPath('message', 'Événement déjà traité.');
+
+        $this->assertDatabaseCount('callbacks_paiement', 1);
+        $this->assertTrue($confirmedAt->equalTo($this->paiement->fresh()->confirmed_at));
+        $this->assertTrue($datePaiement->equalTo($this->commande->fresh()->date_paiement));
+        $this->assertSame(StatutPaiement::Confirme, $this->paiement->fresh()->statut);
+        $this->assertSame(StatutCommande::Payee, $this->commande->fresh()->statut);
+    }
+
     private function payload(string $event = 'payment.completed'): array
     {
         return [
