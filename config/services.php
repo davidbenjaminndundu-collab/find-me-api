@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'nyole' => [
+        'secret' => env('NYOLE_SECRET_KEY'),
+        'base_url' => env('NYOLE_BASE_URL', 'https://app.nyole.com/api'),
+        'success_url' => env('NYOLE_SUCCESS_URL', 'http://localhost:5173/paiement/succes'),
+        'cancel_url' => env('NYOLE_CANCEL_URL', 'http://localhost:5173/paiement/annule'),
+    ],
+
 ];
