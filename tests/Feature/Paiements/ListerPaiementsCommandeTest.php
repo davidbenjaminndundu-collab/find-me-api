@@ -190,6 +190,57 @@ class ListerPaiementsCommandeTest extends TestCase
             ->assertNotFound();
     }
 
+
+    public function test_un_admin_actif_peut_consulter_les_paiements_d_une_commande(): void
+    {
+        $admin = Utilisateur::query()->create([
+            'telephone' => '+243810007004',
+            'mot_de_passe_hash' => Hash::make('password'),
+            'nom' => 'Admin',
+            'prenom' => 'Test',
+            'role' => RoleUtilisateur::Administrateur,
+            'statut_compte' => StatutCompte::Actif,
+            'telephone_verifie_at' => now(),
+        ]);
+
+        Paiement::query()->create([
+            'id_commande' => $this->commande->id_commande,
+            'reference_interne' => 'PAY-TEST-E07-001',
+            'montant' => '100.00',
+            'devise' => 'USD',
+            'operateur' => 'mpesa',
+            'numero_payeur_masque' => '+243*****0001',
+            'reference_operateur' => 'sess_e07',
+            'statut' => StatutPaiement::EnAttente,
+            'idempotency_key' => '12121212-1212-4121-8121-121212121212',
+            'initiated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson($this->url())
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.reference_interne', 'PAY-TEST-E07-001')
+            ->assertJsonPath('data.0.statut', 'en_attente');
+    }
+
+    public function test_un_admin_suspendu_ne_peut_pas_consulter_les_paiements(): void
+    {
+        $admin = Utilisateur::query()->create([
+            'telephone' => '+243810007005',
+            'mot_de_passe_hash' => Hash::make('password'),
+            'nom' => 'Admin',
+            'prenom' => 'Suspendu',
+            'role' => RoleUtilisateur::Administrateur,
+            'statut_compte' => StatutCompte::Suspendu,
+            'telephone_verifie_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson($this->url())
+            ->assertForbidden();
+    }
+
     private function url(): string
     {
         return '/api/v1/commandes/'.$this->commande->id_commande.'/paiements';
