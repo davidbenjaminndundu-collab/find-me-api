@@ -85,4 +85,13 @@ class Commande extends Model
             'id_commande'
         );
     }
+
+    public function paiements(): HasMany
+    {
+        return $this->hasMany(
+            Paiement::class,
+            'id_commande',
+            'id_commande'
+        );
+    }
 }
