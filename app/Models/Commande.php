@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\StatutCommande;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Commande extends Model
 {
@@ -74,5 +75,14 @@ class Commande extends Model
     public function annonce(): BelongsTo
     {
         return $this->belongsTo(Annonce::class, 'id_annonce', 'id_annonce');
+    }
+
+    public function precisions(): HasMany
+    {
+        return $this->hasMany(
+            PrecisionCommande::class,
+            'id_commande',
+            'id_commande'
+        );
     }
 }
