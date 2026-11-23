@@ -213,6 +213,44 @@ class InitierPaiementTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_une_tentative_creee_est_reprise_apres_une_coupure(): void
+    {
+        $paiement = Paiement::query()->create([
+            'id_commande' => $this->commande->id_commande,
+            'reference_interne' => 'PAY-TEST-RESUME-001',
+            'montant' => '100.00',
+            'devise' => 'USD',
+            'operateur' => 'mpesa',
+            'numero_payeur_masque' => '+243*****0050',
+            'reference_operateur' => null,
+            'statut' => StatutPaiement::Cree,
+            'idempotency_key' => 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+            'initiated_at' => now(),
+        ]);
+
+        $this->commande->update([
+            'statut' => StatutCommande::PaiementEnCours,
+        ]);
+
+        $this->actingAs($this->client)->postJson(
+            $this->url(),
+            $this->payload(),
+            ['Idempotency-Key' => 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee']
+        )->assertStatus(202)
+            ->assertJsonPath('paiement.id_paiement', $paiement->id_paiement)
+            ->assertJsonPath('paiement.reference_interne', 'PAY-TEST-RESUME-001')
+            ->assertJsonPath('paiement.statut', 'en_attente')
+            ->assertJsonPath('url_paiement', 'https://app.nyole.com/checkout/sess_test_e01');
+
+        $this->assertDatabaseCount('paiements', 1);
+        $this->assertDatabaseHas('paiements', [
+            'id_paiement' => $paiement->id_paiement,
+            'reference_operateur' => 'sess_test_e01',
+            'statut' => StatutPaiement::EnAttente->value,
+        ]);
+        Http::assertSentCount(1);
+    }
+
     public function test_un_visiteur_ne_peut_pas_payer(): void
     {
         $this->postJson(
