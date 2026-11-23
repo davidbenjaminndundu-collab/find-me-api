@@ -20,25 +20,31 @@ class InitierPaiementService
     {
         $this->verifierClientActif($client);
 
-        $existant = Paiement::query()
-            ->where('idempotency_key', $donnees['cle_idempotence'])
-            ->first();
-
-        if ($existant !== null) {
-            if ((int) $existant->id_commande !== $idCommande) {
-                throw new HttpException(
-                    409,
-                    'Cette clé d’idempotence a déjà été utilisée pour un autre paiement.'
-                );
-            }
-
-            $this->exigerCommandeDuClient($client, $idCommande);
-
-            return $this->presenter($existant);
-        }
-
         return DB::transaction(function () use ($client, $idCommande, $donnees): array {
             $commande = $this->exigerCommandeDuClient($client, $idCommande, verrouiller: true);
+
+            $existant = Paiement::query()
+                ->where('idempotency_key', $donnees['cle_idempotence'])
+                ->lockForUpdate()
+                ->first();
+
+            if ($existant !== null) {
+                if ((int) $existant->id_commande !== $idCommande) {
+                    throw new HttpException(
+                        409,
+                        'Cette clé d’idempotence a déjà été utilisée pour un autre paiement.'
+                    );
+                }
+
+                return $this->presenter($existant);
+            }
+
+            if ($commande->statut === StatutCommande::PaiementEnCours) {
+                throw new HttpException(
+                    409,
+                    'Un paiement est déjà en cours pour cette commande.'
+                );
+            }
 
             if ($commande->statut !== StatutCommande::EnAttentePaiement) {
                 throw new HttpException(

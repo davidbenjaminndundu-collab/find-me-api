@@ -171,14 +171,43 @@ class InitierPaiementTest extends TestCase
     {
         $headers = ['Idempotency-Key' => '22222222-2222-4222-8222-222222222222'];
 
-        $this->actingAs($this->client)
+        $premiere = $this->actingAs($this->client)
             ->postJson($this->url(), $this->payload(), $headers)
             ->assertStatus(202);
 
-        $this->actingAs($this->client)
+        $seconde = $this->actingAs($this->client)
             ->postJson($this->url(), $this->payload(), $headers)
             ->assertStatus(202)
-            ->assertJsonPath('paiement.statut', 'en_attente');
+            ->assertJsonPath(
+                'paiement.id_paiement',
+                $premiere->json('paiement.id_paiement')
+            )
+            ->assertJsonPath(
+                'paiement.reference_interne',
+                $premiere->json('paiement.reference_interne')
+            )
+            ->assertJsonPath(
+                'url_paiement',
+                $premiere->json('url_paiement')
+            );
+
+        $this->assertDatabaseCount('paiements', 1);
+        Http::assertSentCount(1);
+    }
+
+    public function test_une_autre_cle_ne_ouvre_pas_une_deuxieme_session_active(): void
+    {
+        $this->actingAs($this->client)->postJson(
+            $this->url(),
+            $this->payload(),
+            ['Idempotency-Key' => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc']
+        )->assertStatus(202);
+
+        $this->actingAs($this->client)->postJson(
+            $this->url(),
+            $this->payload(),
+            ['Idempotency-Key' => 'dddddddd-dddd-4ddd-8ddd-dddddddddddd']
+        )->assertStatus(409);
 
         $this->assertDatabaseCount('paiements', 1);
         Http::assertSentCount(1);
