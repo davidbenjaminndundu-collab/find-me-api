@@ -16,6 +16,7 @@ use App\Models\Utilisateur;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use App\Models\Paiement;
 use Tests\TestCase;
 
 class InitierPaiementTest extends TestCase
@@ -198,7 +199,7 @@ class InitierPaiementTest extends TestCase
             $this->url(),
             $this->payload(),
             ['Idempotency-Key' => '44444444-4444-4444-8444-444444444444']
-        )->assertForbidden();
+        )->assertNotFound();
     }
 
     public function test_une_commande_non_acceptee_ne_peut_pas_etre_payee(): void
@@ -235,6 +236,41 @@ class InitierPaiementTest extends TestCase
             ->postJson($this->url(), $this->payload())
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['cle_idempotence']);
+    }
+
+    public function test_une_commande_inconnue_renvoie_404(): void
+    {
+        $this->actingAs($this->client)->postJson(
+            '/api/v1/commandes/999999/paiements',
+            $this->payload(),
+            ['Idempotency-Key' => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']
+        )->assertNotFound();
+    }
+
+    public function test_un_autre_client_ne_peut_pas_rejouer_une_cle_existante(): void
+    {
+        Paiement::query()->create([
+            'id_commande' => $this->commande->id_commande,
+            'reference_interne' => 'PAY-TEST-FIX-OWNER',
+            'montant' => '100.00',
+            'devise' => 'USD',
+            'operateur' => 'mpesa',
+            'numero_payeur_masque' => '+243*****0050',
+            'reference_operateur' => 'sess_fix_owner',
+            'statut' => StatutPaiement::EnAttente,
+            'idempotency_key' => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            'initiated_at' => now(),
+        ]);
+
+        $this->commande->update([
+            'statut' => StatutCommande::PaiementEnCours,
+        ]);
+
+        $this->actingAs($this->autreClient)->postJson(
+            $this->url(),
+            $this->payload(),
+            ['Idempotency-Key' => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb']
+        )->assertNotFound();
     }
 
     private function url(): string

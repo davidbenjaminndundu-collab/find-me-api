@@ -32,25 +32,13 @@ class InitierPaiementService
                 );
             }
 
+            $this->exigerCommandeDuClient($client, $idCommande);
+
             return $this->presenter($existant);
         }
 
         return DB::transaction(function () use ($client, $idCommande, $donnees): array {
-            $commande = Commande::query()
-                ->where('id_commande', $idCommande)
-                ->lockForUpdate()
-                ->first();
-
-            if ($commande === null) {
-                throw new HttpException(404, 'Commande introuvable.');
-            }
-
-            if ((int) $commande->id_client !== (int) $client->id_utilisateur) {
-                throw new HttpException(
-                    403,
-                    'Action réservée au client de la commande.'
-                );
-            }
+            $commande = $this->exigerCommandeDuClient($client, $idCommande, verrouiller: true);
 
             if ($commande->statut !== StatutCommande::EnAttentePaiement) {
                 throw new HttpException(
@@ -147,6 +135,30 @@ class InitierPaiementService
     private function masquerNumero(string $numero): string
     {
         return substr($numero, 0, 4).'*****'.substr($numero, -4);
+    }
+
+
+    private function exigerCommandeDuClient(
+        Utilisateur $client,
+        int $idCommande,
+        bool $verrouiller = false
+    ): Commande {
+        $query = Commande::query()->where('id_commande', $idCommande);
+
+        if ($verrouiller) {
+            $query->lockForUpdate();
+        }
+
+        $commande = $query->first();
+
+        if (
+            $commande === null
+            || (int) $commande->id_client !== (int) $client->id_utilisateur
+        ) {
+            throw new HttpException(404, 'Commande introuvable.');
+        }
+
+        return $commande;
     }
 
     private function verifierClientActif(Utilisateur $client): void
