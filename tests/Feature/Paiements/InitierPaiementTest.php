@@ -11,12 +11,12 @@ use App\Enums\StatutPaiement;
 use App\Models\Annonce;
 use App\Models\Categorie;
 use App\Models\Commande;
+use App\Models\Paiement;
 use App\Models\ProfilPrestataire;
 use App\Models\Utilisateur;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
-use App\Models\Paiement;
 use Tests\TestCase;
 
 class InitierPaiementTest extends TestCase
@@ -139,13 +139,14 @@ class InitierPaiementTest extends TestCase
         );
 
         $response->assertStatus(202)
-            ->assertJsonPath('message', 'Paiement initié.')
             ->assertJsonPath('url_paiement', 'https://app.nyole.com/checkout/sess_test_e01')
-            ->assertJsonPath('paiement.montant', '100.00')
-            ->assertJsonPath('paiement.devise', 'USD')
-            ->assertJsonPath('paiement.operateur', 'mpesa')
-            ->assertJsonPath('paiement.numero_payeur_masque', '+243*****0050')
-            ->assertJsonPath('paiement.statut', 'en_attente');
+            ->assertJsonPath('montant', '100.00')
+            ->assertJsonPath('devise', 'USD')
+            ->assertJsonPath('operateur', 'mpesa')
+            ->assertJsonPath('numero_payeur_masque', '+243*****0050')
+            ->assertJsonPath('statut', 'en_attente')
+            ->assertJsonMissingPath('message')
+            ->assertJsonMissingPath('paiement');
 
         $this->assertDatabaseHas('paiements', [
             'id_commande' => $this->commande->id_commande,
@@ -175,16 +176,16 @@ class InitierPaiementTest extends TestCase
             ->postJson($this->url(), $this->payload(), $headers)
             ->assertStatus(202);
 
-        $seconde = $this->actingAs($this->client)
+        $this->actingAs($this->client)
             ->postJson($this->url(), $this->payload(), $headers)
             ->assertStatus(202)
             ->assertJsonPath(
-                'paiement.id_paiement',
-                $premiere->json('paiement.id_paiement')
+                'id_paiement',
+                $premiere->json('id_paiement')
             )
             ->assertJsonPath(
-                'paiement.reference_interne',
-                $premiere->json('paiement.reference_interne')
+                'reference_interne',
+                $premiere->json('reference_interne')
             )
             ->assertJsonPath(
                 'url_paiement',
@@ -237,9 +238,9 @@ class InitierPaiementTest extends TestCase
             $this->payload(),
             ['Idempotency-Key' => 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee']
         )->assertStatus(202)
-            ->assertJsonPath('paiement.id_paiement', $paiement->id_paiement)
-            ->assertJsonPath('paiement.reference_interne', 'PAY-TEST-RESUME-001')
-            ->assertJsonPath('paiement.statut', 'en_attente')
+            ->assertJsonPath('id_paiement', $paiement->id_paiement)
+            ->assertJsonPath('reference_interne', 'PAY-TEST-RESUME-001')
+            ->assertJsonPath('statut', 'en_attente')
             ->assertJsonPath('url_paiement', 'https://app.nyole.com/checkout/sess_test_e01');
 
         $this->assertDatabaseCount('paiements', 1);
