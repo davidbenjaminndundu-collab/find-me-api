@@ -11,6 +11,7 @@ use App\Enums\StatutPaiement;
 use App\Models\Annonce;
 use App\Models\Categorie;
 use App\Models\Commande;
+use App\Models\Paiement;
 use App\Models\ProfilPrestataire;
 use App\Models\Utilisateur;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -138,13 +139,14 @@ class InitierPaiementTest extends TestCase
         );
 
         $response->assertStatus(202)
-            ->assertJsonPath('message', 'Paiement initié.')
             ->assertJsonPath('url_paiement', 'https://app.nyole.com/checkout/sess_test_e01')
-            ->assertJsonPath('paiement.montant', '100.00')
-            ->assertJsonPath('paiement.devise', 'USD')
-            ->assertJsonPath('paiement.operateur', 'mpesa')
-            ->assertJsonPath('paiement.numero_payeur_masque', '+243*****0050')
-            ->assertJsonPath('paiement.statut', 'en_attente');
+            ->assertJsonPath('montant', '100.00')
+            ->assertJsonPath('devise', 'USD')
+            ->assertJsonPath('operateur', 'mpesa')
+            ->assertJsonPath('numero_payeur_masque', '+243*****0050')
+            ->assertJsonPath('statut', 'en_attente')
+            ->assertJsonMissingPath('message')
+            ->assertJsonMissingPath('paiement');
 
         $this->assertDatabaseHas('paiements', [
             'id_commande' => $this->commande->id_commande,
@@ -170,16 +172,83 @@ class InitierPaiementTest extends TestCase
     {
         $headers = ['Idempotency-Key' => '22222222-2222-4222-8222-222222222222'];
 
-        $this->actingAs($this->client)
+        $premiere = $this->actingAs($this->client)
             ->postJson($this->url(), $this->payload(), $headers)
             ->assertStatus(202);
 
         $this->actingAs($this->client)
             ->postJson($this->url(), $this->payload(), $headers)
             ->assertStatus(202)
-            ->assertJsonPath('paiement.statut', 'en_attente');
+            ->assertJsonPath(
+                'id_paiement',
+                $premiere->json('id_paiement')
+            )
+            ->assertJsonPath(
+                'reference_interne',
+                $premiere->json('reference_interne')
+            )
+            ->assertJsonPath(
+                'url_paiement',
+                $premiere->json('url_paiement')
+            );
 
         $this->assertDatabaseCount('paiements', 1);
+        Http::assertSentCount(1);
+    }
+
+    public function test_une_autre_cle_ne_ouvre_pas_une_deuxieme_session_active(): void
+    {
+        $this->actingAs($this->client)->postJson(
+            $this->url(),
+            $this->payload(),
+            ['Idempotency-Key' => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc']
+        )->assertStatus(202);
+
+        $this->actingAs($this->client)->postJson(
+            $this->url(),
+            $this->payload(),
+            ['Idempotency-Key' => 'dddddddd-dddd-4ddd-8ddd-dddddddddddd']
+        )->assertStatus(409);
+
+        $this->assertDatabaseCount('paiements', 1);
+        Http::assertSentCount(1);
+    }
+
+    public function test_une_tentative_creee_est_reprise_apres_une_coupure(): void
+    {
+        $paiement = Paiement::query()->create([
+            'id_commande' => $this->commande->id_commande,
+            'reference_interne' => 'PAY-TEST-RESUME-001',
+            'montant' => '100.00',
+            'devise' => 'USD',
+            'operateur' => 'mpesa',
+            'numero_payeur_masque' => '+243*****0050',
+            'reference_operateur' => null,
+            'statut' => StatutPaiement::Cree,
+            'idempotency_key' => 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+            'initiated_at' => now(),
+        ]);
+
+        $this->commande->update([
+            'statut' => StatutCommande::PaiementEnCours,
+        ]);
+
+        $this->actingAs($this->client)->postJson(
+            $this->url(),
+            $this->payload(),
+            ['Idempotency-Key' => 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee']
+        )->assertStatus(202)
+            ->assertJsonPath('id_paiement', $paiement->id_paiement)
+            ->assertJsonPath('reference_interne', 'PAY-TEST-RESUME-001')
+            ->assertJsonPath('statut', 'en_attente')
+            ->assertJsonPath('url_paiement', 'https://app.nyole.com/checkout/sess_test_e01');
+
+        $this->assertDatabaseCount('paiements', 1);
+        $this->assertDatabaseHas('paiements', [
+            'id_paiement' => $paiement->id_paiement,
+            'reference_operateur' => 'sess_test_e01',
+            'statut' => StatutPaiement::EnAttente->value,
+        ]);
         Http::assertSentCount(1);
     }
 
@@ -198,7 +267,7 @@ class InitierPaiementTest extends TestCase
             $this->url(),
             $this->payload(),
             ['Idempotency-Key' => '44444444-4444-4444-8444-444444444444']
-        )->assertForbidden();
+        )->assertNotFound();
     }
 
     public function test_une_commande_non_acceptee_ne_peut_pas_etre_payee(): void
@@ -235,6 +304,41 @@ class InitierPaiementTest extends TestCase
             ->postJson($this->url(), $this->payload())
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['cle_idempotence']);
+    }
+
+    public function test_une_commande_inconnue_renvoie_404(): void
+    {
+        $this->actingAs($this->client)->postJson(
+            '/api/v1/commandes/999999/paiements',
+            $this->payload(),
+            ['Idempotency-Key' => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']
+        )->assertNotFound();
+    }
+
+    public function test_un_autre_client_ne_peut_pas_rejouer_une_cle_existante(): void
+    {
+        Paiement::query()->create([
+            'id_commande' => $this->commande->id_commande,
+            'reference_interne' => 'PAY-TEST-FIX-OWNER',
+            'montant' => '100.00',
+            'devise' => 'USD',
+            'operateur' => 'mpesa',
+            'numero_payeur_masque' => '+243*****0050',
+            'reference_operateur' => 'sess_fix_owner',
+            'statut' => StatutPaiement::EnAttente,
+            'idempotency_key' => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            'initiated_at' => now(),
+        ]);
+
+        $this->commande->update([
+            'statut' => StatutCommande::PaiementEnCours,
+        ]);
+
+        $this->actingAs($this->autreClient)->postJson(
+            $this->url(),
+            $this->payload(),
+            ['Idempotency-Key' => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb']
+        )->assertNotFound();
     }
 
     private function url(): string
