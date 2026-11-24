@@ -26,28 +26,26 @@ class RecevoirWebhookPaiementService
             throw new HttpException(400, 'Payload du webhook inexploitable.');
         }
 
-        if ($payload['event'] !== 'payment.completed') {
+        $evenement = $this->normaliserDepuisNyole($payload);
+
+        if ($evenement['event'] !== 'payment.completed') {
             return ['message' => 'Événement ignoré.'];
         }
 
-        $sessionId = $payload['data']['id'] ?? null;
-
-        if (! is_string($sessionId) || $sessionId === '') {
+        if ($evenement['reference_session'] === null || $evenement['identifiant_evenement'] === null) {
             throw new HttpException(400, 'Payload du webhook inexploitable.');
         }
 
         $paiement = Paiement::query()
-            ->where('reference_operateur', $sessionId)
+            ->where('reference_operateur', $evenement['reference_session'])
             ->first();
 
         if ($paiement === null) {
             throw new HttpException(503, 'Paiement introuvable, réessayez plus tard.');
         }
 
-        $identifiant = $sessionId.':payment.completed';
-
         try {
-            return DB::transaction(function () use ($paiement, $payload, $identifiant, $corpsBrut): array {
+            return DB::transaction(function () use ($paiement, $evenement, $corpsBrut): array {
                 $commande = $paiement->commande()->lockForUpdate()->first();
                 $paiement = Paiement::query()
                     ->where('id_paiement', $paiement->id_paiement)
@@ -56,7 +54,7 @@ class RecevoirWebhookPaiementService
 
                 $dejaVu = CallbackPaiement::query()
                     ->where('operateur', 'nyole')
-                    ->where('identifiant_evenement', $identifiant)
+                    ->where('identifiant_evenement', $evenement['identifiant_evenement'])
                     ->exists();
 
                 if ($dejaVu) {
@@ -64,17 +62,16 @@ class RecevoirWebhookPaiementService
                 }
 
                 $montantAttendu = (int) bcmul((string) $paiement->montant, '100', 0);
-                $montantRecu = $payload['data']['amount'] ?? null;
-                $deviseRecue = $payload['data']['currency'] ?? null;
-                $statutRecu = $payload['data']['status'] ?? null;
+                $montantRecu = $evenement['montant_centimes'];
                 $montantEntierPositif = is_int($montantRecu) && $montantRecu > 0;
                 $coherent = $commande !== null
                     && $commande->statut === StatutCommande::PaiementEnCours
                     && $paiement->statut === StatutPaiement::EnAttente
-                    && $deviseRecue === 'USD'
+                    && $evenement['devise'] === 'USD'
                     && $montantEntierPositif
                     && $montantRecu === $montantAttendu
-                    && $statutRecu === 'SUCCESS';
+                    && $evenement['statut_metier'] === 'confirme';
+
                 if ($coherent) {
                     $paiement->update([
                         'statut' => StatutPaiement::Confirme,
@@ -90,11 +87,11 @@ class RecevoirWebhookPaiementService
                 CallbackPaiement::query()->create([
                     'id_paiement' => $paiement->id_paiement,
                     'operateur' => 'nyole',
-                    'identifiant_evenement' => $identifiant,
+                    'identifiant_evenement' => $evenement['identifiant_evenement'],
                     'signature_valide' => true,
-                    'statut_recu' => $payload['data']['status'] ?? null,
+                    'statut_recu' => $evenement['statut_nyole'],
                     'montant_recu' => $paiement->montant,
-                    'reference_operateur' => $payload['data']['provider_reference'] ?? null,
+                    'reference_operateur' => $evenement['reference_provider'],
                     'payload' => json_decode($corpsBrut, true),
                     'resultat_traitement' => $coherent ? 'traite' : 'incoherent',
                     'processed_at' => now(),
@@ -113,6 +110,47 @@ class RecevoirWebhookPaiementService
 
             throw $exception;
         }
+    }
+
+    /**
+     * Adaptateur interne : payload natif Nyole → forme métier.
+     *
+     * @return array{
+     *     event: string,
+     *     operateur: string,
+     *     reference_session: ?string,
+     *     identifiant_evenement: ?string,
+     *     reference_provider: ?string,
+     *     montant_centimes: mixed,
+     *     devise: mixed,
+     *     statut_nyole: mixed,
+     *     statut_metier: ?string
+     * }
+     */
+    private function normaliserDepuisNyole(array $payload): array
+    {
+        $event = $payload['event'];
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+        $sessionId = is_string($data['id'] ?? null) && $data['id'] !== ''
+            ? $data['id']
+            : null;
+        $statutNyole = $data['status'] ?? null;
+
+        return [
+            'event' => $event,
+            'operateur' => 'nyole',
+            'reference_session' => $sessionId,
+            'identifiant_evenement' => $sessionId !== null ? $sessionId.':'.$event : null,
+            'reference_provider' => is_string($data['provider_reference'] ?? null)
+                ? $data['provider_reference']
+                : null,
+            'montant_centimes' => $data['amount'] ?? null,
+            'devise' => $data['currency'] ?? null,
+            'statut_nyole' => $statutNyole,
+            'statut_metier' => ($event === 'payment.completed' && $statutNyole === 'SUCCESS')
+                ? 'confirme'
+                : null,
+        ];
     }
 
     private function estDoublon(QueryException $exception): bool
