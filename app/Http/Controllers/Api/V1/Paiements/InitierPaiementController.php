@@ -29,18 +29,15 @@ class InitierPaiementController extends Controller
         $paiement = $resultat['paiement'];
 
         return response()->json([
-            'message' => 'Paiement initié.',
+            'id_paiement' => $paiement->id_paiement,
+            'id_commande' => $paiement->id_commande,
+            'reference_interne' => $paiement->reference_interne,
+            'montant' => $paiement->montant,
+            'devise' => $paiement->devise,
+            'operateur' => $paiement->operateur,
+            'numero_payeur_masque' => $paiement->numero_payeur_masque,
+            'statut' => $paiement->statut,
             'url_paiement' => $resultat['url_paiement'],
-            'paiement' => [
-                'id_paiement' => $paiement->id_paiement,
-                'id_commande' => $paiement->id_commande,
-                'reference_interne' => $paiement->reference_interne,
-                'montant' => $paiement->montant,
-                'devise' => $paiement->devise,
-                'operateur' => $paiement->operateur,
-                'numero_payeur_masque' => $paiement->numero_payeur_masque,
-                'statut' => $paiement->statut,
-            ],
         ], 202);
     }
 }

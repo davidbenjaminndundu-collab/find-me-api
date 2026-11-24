@@ -20,7 +20,7 @@ class InitierPaiementService
     {
         $this->verifierClientActif($client);
 
-        return DB::transaction(function () use ($client, $idCommande, $donnees): array {
+        $paiement = DB::transaction(function () use ($client, $idCommande, $donnees): Paiement {
             $commande = $this->exigerCommandeDuClient($client, $idCommande, verrouiller: true);
 
             $existant = Paiement::query()
@@ -36,7 +36,11 @@ class InitierPaiementService
                     );
                 }
 
-                return $this->presenter($existant);
+                if ($existant->statut !== StatutPaiement::Cree) {
+                    return $existant;
+                }
+
+                return $existant;
             }
 
             if ($commande->statut === StatutCommande::PaiementEnCours) {
@@ -53,8 +57,6 @@ class InitierPaiementService
                 );
             }
 
-            $session = $this->creerSessionNyole($client, $commande, $donnees);
-
             $paiement = Paiement::query()->create([
                 'id_commande' => $commande->id_commande,
                 'reference_interne' => $this->referenceInterne(),
@@ -62,8 +64,8 @@ class InitierPaiementService
                 'devise' => 'USD',
                 'operateur' => $donnees['operateur'],
                 'numero_payeur_masque' => $this->masquerNumero($donnees['numero_payeur']),
-                'reference_operateur' => $session['id'],
-                'statut' => StatutPaiement::EnAttente,
+                'reference_operateur' => null,
+                'statut' => StatutPaiement::Cree,
                 'idempotency_key' => $donnees['cle_idempotence'],
                 'initiated_at' => now(),
             ]);
@@ -72,8 +74,22 @@ class InitierPaiementService
                 'statut' => StatutCommande::PaiementEnCours,
             ]);
 
-            return $this->presenter($paiement, $session['url']);
+            return $paiement;
         });
+
+        if ($paiement->statut !== StatutPaiement::Cree) {
+            return $this->presenter($paiement);
+        }
+
+        $commande = $paiement->commande;
+        $session = $this->creerSessionNyole($client, $commande, $donnees);
+
+        $paiement->update([
+            'reference_operateur' => $session['id'],
+            'statut' => StatutPaiement::EnAttente,
+        ]);
+
+        return $this->presenter($paiement->fresh(), $session['url']);
     }
 
     private function creerSessionNyole(Utilisateur $client, Commande $commande, array $donnees): array
