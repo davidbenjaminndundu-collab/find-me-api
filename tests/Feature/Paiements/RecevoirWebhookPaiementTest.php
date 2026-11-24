@@ -131,6 +131,7 @@ class RecevoirWebhookPaiementTest extends TestCase
             'operateur' => 'nyole',
             'identifiant_evenement' => 'sess_test_e03:payment.completed',
             'signature_valide' => true,
+            'montant_recu' => '100.00',
             'resultat_traitement' => 'traite',
         ]);
     }
@@ -201,6 +202,7 @@ class RecevoirWebhookPaiementTest extends TestCase
         $this->assertSame(StatutPaiement::EnAttente, $this->paiement->fresh()->statut);
         $this->assertSame(StatutCommande::PaiementEnCours, $this->commande->fresh()->statut);
         $this->assertDatabaseHas('callbacks_paiement', [
+            'montant_recu' => '0.01',
             'resultat_traitement' => 'incoherent',
         ]);
     }
