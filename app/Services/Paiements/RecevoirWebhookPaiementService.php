@@ -84,15 +84,28 @@ class RecevoirWebhookPaiementService
                     ]);
                 }
 
+                $montantRecuJournal = is_int($evenement['montant_centimes'])
+                    ? bcdiv((string) $evenement['montant_centimes'], '100', 2)
+                    : null;
+
                 CallbackPaiement::query()->create([
                     'id_paiement' => $paiement->id_paiement,
                     'operateur' => 'nyole',
                     'identifiant_evenement' => $evenement['identifiant_evenement'],
                     'signature_valide' => true,
                     'statut_recu' => $evenement['statut_nyole'],
-                    'montant_recu' => $paiement->montant,
+                    'montant_recu' => $montantRecuJournal,
                     'reference_operateur' => $evenement['reference_provider'],
-                    'payload' => json_decode($corpsBrut, true),
+                    'payload' => [
+                        'event' => $evenement['event'],
+                        'reference_session' => $evenement['reference_session'],
+                        'reference_provider' => $evenement['reference_provider'],
+                        'montant_centimes' => $evenement['montant_centimes'],
+                        'devise' => $evenement['devise'],
+                        'statut_nyole' => $evenement['statut_nyole'],
+                        'statut_metier' => $evenement['statut_metier'],
+                        'resultat_traitement' => $coherent ? 'traite' : 'incoherent',
+                    ],
                     'resultat_traitement' => $coherent ? 'traite' : 'incoherent',
                     'processed_at' => now(),
                 ]);
