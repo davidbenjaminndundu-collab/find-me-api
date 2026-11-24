@@ -41,7 +41,7 @@ class RecevoirWebhookPaiementService
             ->first();
 
         if ($paiement === null) {
-            return ['message' => 'Événement ignoré.'];
+            throw new HttpException(503, 'Paiement introuvable, réessayez plus tard.');
         }
 
         $identifiant = $sessionId.':payment.completed';

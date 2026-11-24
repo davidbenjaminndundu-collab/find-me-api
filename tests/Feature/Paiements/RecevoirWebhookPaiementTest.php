@@ -176,16 +176,17 @@ class RecevoirWebhookPaiementTest extends TestCase
         $this->assertDatabaseCount('callbacks_paiement', 0);
     }
 
-    public function test_une_session_inconnue_est_ignoree(): void
+    public function test_une_session_inconnue_demande_un_nouvel_essai(): void
     {
         $payload = $this->payload();
         $payload['data']['id'] = 'sess_inconnue';
 
         $this->envoyer($payload)
-            ->assertOk()
-            ->assertJsonPath('message', 'Événement ignoré.');
+            ->assertStatus(503)
+            ->assertJsonPath('message', 'Paiement introuvable, réessayez plus tard.');
 
         $this->assertSame(StatutCommande::PaiementEnCours, $this->commande->fresh()->statut);
+        $this->assertDatabaseCount('callbacks_paiement', 0);
     }
 
     public function test_un_montant_different_ne_confirme_pas_la_commande(): void
