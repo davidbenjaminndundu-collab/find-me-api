@@ -7,6 +7,16 @@ use App\Services\Paiements\RecevoirWebhookPaiementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+/**
+ * Webhook Nyole (Afriflow) — appel direct, sans adaptateur HTTP.
+ *
+ * En-têtes attendus :
+ * - X-Afriflow-Timestamp : horodatage Unix (secondes)
+ * - X-Afriflow-Signature : v1=<hmac-sha256 hex de "{timestamp}.{corpsBrut}">
+ *
+ * Corps : payload natif Nyole (event, data.id, data.amount en centimes,
+ * data.currency, data.status). Le service normalise ensuite vers le format métier.
+ */
 class RecevoirWebhookPaiementController extends Controller
 {
     public function __construct(
