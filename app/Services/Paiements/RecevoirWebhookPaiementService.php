@@ -66,12 +66,15 @@ class RecevoirWebhookPaiementService
                 $montantAttendu = (int) bcmul((string) $paiement->montant, '100', 0);
                 $montantRecu = $payload['data']['amount'] ?? null;
                 $deviseRecue = $payload['data']['currency'] ?? null;
+                $statutRecu = $payload['data']['status'] ?? null;
+                $montantEntierPositif = is_int($montantRecu) && $montantRecu > 0;
                 $coherent = $commande !== null
                     && $commande->statut === StatutCommande::PaiementEnCours
                     && $paiement->statut === StatutPaiement::EnAttente
                     && $deviseRecue === 'USD'
-                    && (int) $montantRecu === $montantAttendu;
-
+                    && $montantEntierPositif
+                    && $montantRecu === $montantAttendu
+                    && $statutRecu === 'SUCCESS';
                 if ($coherent) {
                     $paiement->update([
                         'statut' => StatutPaiement::Confirme,

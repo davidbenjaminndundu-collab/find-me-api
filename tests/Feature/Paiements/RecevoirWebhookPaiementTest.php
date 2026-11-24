@@ -205,6 +205,37 @@ class RecevoirWebhookPaiementTest extends TestCase
         ]);
     }
 
+    public function test_un_montant_non_entier_ne_confirme_pas_la_commande(): void
+    {
+        $payload = $this->payload();
+        $payload['data']['amount'] = 10000.5;
+
+        $this->envoyer($payload)
+            ->assertOk()
+            ->assertJsonPath('message', 'Événement reçu sans changement de statut.');
+
+        $this->assertSame(StatutPaiement::EnAttente, $this->paiement->fresh()->statut);
+        $this->assertSame(StatutCommande::PaiementEnCours, $this->commande->fresh()->statut);
+        $this->assertDatabaseHas('callbacks_paiement', [
+            'resultat_traitement' => 'incoherent',
+        ]);
+    }
+
+    public function test_un_statut_non_success_ne_confirme_pas_la_commande(): void
+    {
+        $payload = $this->payload();
+        $payload['data']['status'] = 'PENDING';
+
+        $this->envoyer($payload)
+            ->assertOk()
+            ->assertJsonPath('message', 'Événement reçu sans changement de statut.');
+
+        $this->assertSame(StatutPaiement::EnAttente, $this->paiement->fresh()->statut);
+        $this->assertSame(StatutCommande::PaiementEnCours, $this->commande->fresh()->statut);
+        $this->assertDatabaseHas('callbacks_paiement', [
+            'resultat_traitement' => 'incoherent',
+        ]);
+    }
 
     public function test_le_meme_evenement_ne_confirme_pas_deux_fois(): void
     {
