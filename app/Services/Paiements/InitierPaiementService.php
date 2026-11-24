@@ -20,25 +20,35 @@ class InitierPaiementService
     {
         $this->verifierClientActif($client);
 
-        $existant = Paiement::query()
-            ->where('idempotency_key', $donnees['cle_idempotence'])
-            ->first();
+        $paiement = DB::transaction(function () use ($client, $idCommande, $donnees): Paiement {
+            $commande = $this->exigerCommandeDuClient($client, $idCommande, verrouiller: true);
 
-        if ($existant !== null) {
-            if ((int) $existant->id_commande !== $idCommande) {
-                throw new HttpException(
-                    409,
-                    'Cette clé d’idempotence a déjà été utilisée pour un autre paiement.'
-                );
+            $existant = Paiement::query()
+                ->where('idempotency_key', $donnees['cle_idempotence'])
+                ->lockForUpdate()
+                ->first();
+
+            if ($existant !== null) {
+                if ((int) $existant->id_commande !== $idCommande) {
+                    throw new HttpException(
+                        409,
+                        'Cette clé d’idempotence a déjà été utilisée pour un autre paiement.'
+                    );
+                }
+
+                if ($existant->statut !== StatutPaiement::Cree) {
+                    return $existant;
+                }
+
+                return $existant;
             }
 
-            $this->exigerCommandeDuClient($client, $idCommande);
-
-            return $this->presenter($existant);
-        }
-
-        return DB::transaction(function () use ($client, $idCommande, $donnees): array {
-            $commande = $this->exigerCommandeDuClient($client, $idCommande, verrouiller: true);
+            if ($commande->statut === StatutCommande::PaiementEnCours) {
+                throw new HttpException(
+                    409,
+                    'Un paiement est déjà en cours pour cette commande.'
+                );
+            }
 
             if ($commande->statut !== StatutCommande::EnAttentePaiement) {
                 throw new HttpException(
@@ -47,8 +57,6 @@ class InitierPaiementService
                 );
             }
 
-            $session = $this->creerSessionNyole($client, $commande, $donnees);
-
             $paiement = Paiement::query()->create([
                 'id_commande' => $commande->id_commande,
                 'reference_interne' => $this->referenceInterne(),
@@ -56,8 +64,8 @@ class InitierPaiementService
                 'devise' => 'USD',
                 'operateur' => $donnees['operateur'],
                 'numero_payeur_masque' => $this->masquerNumero($donnees['numero_payeur']),
-                'reference_operateur' => $session['id'],
-                'statut' => StatutPaiement::EnAttente,
+                'reference_operateur' => null,
+                'statut' => StatutPaiement::Cree,
                 'idempotency_key' => $donnees['cle_idempotence'],
                 'initiated_at' => now(),
             ]);
@@ -66,8 +74,22 @@ class InitierPaiementService
                 'statut' => StatutCommande::PaiementEnCours,
             ]);
 
-            return $this->presenter($paiement, $session['url']);
+            return $paiement;
         });
+
+        if ($paiement->statut !== StatutPaiement::Cree) {
+            return $this->presenter($paiement);
+        }
+
+        $commande = $paiement->commande;
+        $session = $this->creerSessionNyole($client, $commande, $donnees);
+
+        $paiement->update([
+            'reference_operateur' => $session['id'],
+            'statut' => StatutPaiement::EnAttente,
+        ]);
+
+        return $this->presenter($paiement->fresh(), $session['url']);
     }
 
     private function creerSessionNyole(Utilisateur $client, Commande $commande, array $donnees): array
